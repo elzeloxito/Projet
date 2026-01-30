@@ -32,5 +32,9 @@ class MyPlayer(PlayerHex):
             Action: The best action as determined by minimax.
         """
 
+        # Prend en argument l'etat de la partie de type GameStateHex et le temps restant pour effectuer des actions (par défaut 15min)
+        
+        
+
         #TODO
         raise MethodNotImplementedError()

@@ -12,7 +12,8 @@ from seahorse.game.stateless_action import StatelessAction
 from seahorse.utils.serializer import Serializable
 from seahorse.player.proxies import RemotePlayerProxy, LocalPlayerProxy, InteractivePlayerProxy
 
-
+# Definit une classe a partir d'une classe parent generale 
+# Adapte l'etat a une partie de Hex 
 class GameStateHex(GameState):
     """
     A class representing the state of an Hex game.
@@ -25,10 +26,12 @@ class GameStateHex(GameState):
     """
 
     def __init__(self, scores: dict, active_player: PlayerHex, players: list[PlayerHex], rep: BoardHex, step: int,  *args, **kwargs) -> None:
+        # Appelle le init de la classe parent GameState
         super().__init__(scores, active_player, players, rep)
         self.max_step = rep.get_dimensions()[0] * rep.get_dimensions()[1]  # + 1 #+1 for the swap
         self.step = step
 
+    # Retourne le nombre de coups qui ont été joués dans la partie 
     def get_step(self) -> int:
         """
         Return the current step of the game.
@@ -36,8 +39,10 @@ class GameStateHex(GameState):
         Returns:
             int: The current step of the game.
         """
-        return self.step
-
+        #print(self.step)
+        return self.step 
+    
+    # Indique si le jeu est terminé => s'il y a un vainqueur => si un chemin est trouvé entre deux couleurs 
     def is_done(self) -> bool:
         """
         Check if the game is finished.
@@ -45,13 +50,16 @@ class GameStateHex(GameState):
         Returns:
             bool: True if the game is finished, False otherwise.
         """
+        # si le score du joueur 1 =1 ou celui du joueur 2 =1 alors c'est qu'il y a un vainqueur
         if self.scores[self.players[0].id] == 1 or self.scores[self.players[1].id] == 1:
             return True
         return False
-
+    
+    # 
     def get_neighbours(self, i: int, j: int) -> dict[str, tuple[str | Piece, tuple[int, int]]]:
         return self.get_rep().get_neighbours(i, j)
 
+    # retourne si une position est dans le board Hex
     def in_board(self, index) -> bool:
         """
         Check if a given index is within the game board.
@@ -65,7 +73,8 @@ class GameStateHex(GameState):
         if index[0] < 0 or index[0] >= self.get_rep().get_dimensions()[0] or index[1] < 0 or index[1] >= self.get_rep().get_dimensions()[1]:
             return False
         return True
-
+    
+    # Retourne le joueur associé à l'identifiant que l'on demande 
     def get_player_id(self, pid) -> PlayerHex | None:
         """
         Get the player with the given ID.
@@ -80,6 +89,7 @@ class GameStateHex(GameState):
             if player.get_id() == pid:
                 return player
 
+    # retourne une action possible en considérant le joueur, l'etat du jeu 
     def generate_possible_stateful_actions(self) -> Generator[StatefulAction, None, None]:
         """
         Generate possible actions.
@@ -108,6 +118,7 @@ class GameStateHex(GameState):
             )
             yield StatefulAction(self, new_state)
 
+    # retourne un move valide, optimal mais sans info sur l'etat du jeu donc pourrait ne pas etre valide
     def generate_possible_stateless_actions(self) -> Generator[StatelessAction, None, None]:
         """
         Generate possible stateless actions for the current game state.
@@ -119,6 +130,7 @@ class GameStateHex(GameState):
         for position in self.rep.get_empty():
             yield StatelessAction({"piece": self.get_active_player().get_piece_type(), "position": position})
 
+    # Applique une action demandée à la board Hex
     def apply_action(self, action: StatelessAction) -> GameState:
         """
         Apply an action to the game state.
@@ -160,7 +172,9 @@ class GameStateHex(GameState):
             new_board,
             step=self.step + 1,
         )
-
+    
+    # Convertit une action stateful en une action stateless 
+    # Permet de prendre en compte l'etat du jeu pour une action mais de ne garder que l'action et non l'etat du jeu 
     def convert_stateful_action_to_stateless_action(self, stateful_action: StatefulAction) -> StatelessAction:
         """
         Generate a stateless action from a stateful action.
@@ -186,6 +200,7 @@ class GameStateHex(GameState):
                     return StatelessAction({"piece": piece_type, "position": (i, j)})
         raise ValueError("No stateless action found in the action.")
 
+    # 
     def convert_gui_data_to_action_data(self, gui_data: dict) -> dict:
         """
         Convert GUI data to action data.
