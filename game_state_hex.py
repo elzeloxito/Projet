@@ -55,7 +55,7 @@ class GameStateHex(GameState):
             return True
         return False
     
-    # 
+    # Retourne un dictionnaire avec pour définition un tuple (type de pièce, position sur la board)
     def get_neighbours(self, i: int, j: int) -> dict[str, tuple[str | Piece, tuple[int, int]]]:
         return self.get_rep().get_neighbours(i, j)
 
@@ -89,7 +89,7 @@ class GameStateHex(GameState):
             if player.get_id() == pid:
                 return player
 
-    # retourne une action possible en considérant le joueur, l'etat du jeu 
+    # retourne en plus de l'état actuel de la board, les actions possibles à partir de cet état et les états de la board après ces actions
     def generate_possible_stateful_actions(self) -> Generator[StatefulAction, None, None]:
         """
         Generate possible actions.
@@ -118,7 +118,7 @@ class GameStateHex(GameState):
             )
             yield StatefulAction(self, new_state)
 
-    # retourne un move valide, optimal mais sans info sur l'etat du jeu donc pourrait ne pas etre valide
+    # retourne une action valide composée du type de pièce et de la position où elle est jouée (position après état actuel) -> aucun info sur les états de la board avant et après
     def generate_possible_stateless_actions(self) -> Generator[StatelessAction, None, None]:
         """
         Generate possible stateless actions for the current game state.
@@ -174,7 +174,6 @@ class GameStateHex(GameState):
         )
     
     # Convertit une action stateful en une action stateless 
-    # Permet de prendre en compte l'etat du jeu pour une action mais de ne garder que l'action et non l'etat du jeu 
     def convert_stateful_action_to_stateless_action(self, stateful_action: StatefulAction) -> StatelessAction:
         """
         Generate a stateless action from a stateful action.
@@ -200,7 +199,6 @@ class GameStateHex(GameState):
                     return StatelessAction({"piece": piece_type, "position": (i, j)})
         raise ValueError("No stateless action found in the action.")
 
-    # 
     def convert_gui_data_to_action_data(self, gui_data: dict) -> dict:
         """
         Convert GUI data to action data.
@@ -213,6 +211,7 @@ class GameStateHex(GameState):
         """
         return {"piece": gui_data["piece"], "position": tuple(gui_data["position"])}
 
+    # Calcule si pour un état de la partie donné, un joueur donné est vainqueur ou non => score de 1. Si ce n'est pas le cas, les deux scores sont fixés à 0.
     def compute_scores(self, play_info: tuple) -> dict[int, float]:
         """
         Compute the score of each player in a list.
