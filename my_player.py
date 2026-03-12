@@ -3,6 +3,7 @@ from seahorse.game.action import Action
 from game_state_hex import GameStateHex
 from seahorse.utils.custom_exceptions import MethodNotImplementedError
 import numpy as np
+from collections import deque
 
 class MyPlayer(PlayerHex):
     """
@@ -23,7 +24,6 @@ class MyPlayer(PlayerHex):
         super().__init__(piece_type, name)
 
     # Cette fonction doit retourner une action selon l’état actuel du jeu
-    # Une action est composée de deux objets GameState : (1) current_game_state : état actuel du jeu && (2) next_game_state : état du jeu après avoir effectué le mouvement proposé
     def compute_action(self, current_state: GameStateHex, remaining_time: float = 15*60, **kwargs) -> Action:
         """
         Use the minimax algorithm to choose the best action based on the heuristic evaluation of game states.
@@ -33,120 +33,193 @@ class MyPlayer(PlayerHex):
 
         Returns:
             Action: The best action as determined by minimax.
-        """
+        """ 
 
-        # TODO_LIST :
-        
-        def heuristic(state: GameStateHex):
-            return 50
-
-        current_depth = current_state.get_step()
-        limit = current_depth + 3
-        player_MAX = current_state.active_player 
-        id_MAX = player_MAX.get_id()
-        temp_state = next(current_state.generate_possible_stateful_actions())
-        min_state = temp_state.next_game_state
-        player_MIN = min_state.active_player
-        id_MIN = player_MIN.get_id()
-        player_id = id_MAX
-
-        states_to_extend = [current_state]
-        family = {}
-
-        # DESCENT 
-
-        for depth in range(current_depth, limit):
-            if depth != limit-1: 
-                width = 5 # width should be a function of the depth but chosen as constant for the first script 
-                future_states = []
-                number_extended_states = 0
-                found_final_states = {}
-
-                if player_id == id_MAX:
-                    for state in states_to_extend:
-                        number_extended_states += 1
-                        selected_states = [(None,-float('inf'))]*width
-                        for extended_state in state.generate_possible_stateful_actions():
-                            if not extended_state.next_game_state.is_done():
-                                family[extended_state.next_game_state] = state
-                                if heuristic(extended_state.next_game_state) > min(selected_states, key=lambda x: x[1])[1]:
-                                    selected_states[min(range(len(selected_states)), key=lambda i: selected_states[i][1])] = (extended_state.next_game_state, heuristic(extended_state.next_game_state))
-                            else: # if we find a final state during the descent, we store the value and the layer where it happened to add it to back_prop during the ascent 
-                                found_final_states[extended_state.next_game_state] = ((heuristic(extended_state.next_game_state), depth))
-                        future_states += [chosen[0] for chosen in selected_states if chosen[0] is not None]
-                    states_to_extend = future_states
-                    player_id = id_MIN
-
-                else:
-                    for state in states_to_extend:
-                        number_extended_states += 1
-                        selected_states = [(None,float('inf'))]*width
-                        for extended_state in state.generate_possible_stateful_actions():
-                            if not extended_state.next_game_state.is_done():
-                                family[extended_state.next_game_state] = state
-                                if heuristic(extended_state.next_game_state) < max(selected_states, key=lambda x: x[1])[1]:
-                                    selected_states[max(range(len(selected_states)), key=lambda i: selected_states[i][1])] = (extended_state.next_game_state, heuristic(extended_state.next_game_state))
-                            else: 
-                                found_final_states[extended_state.next_game_state] = ((heuristic(extended_state.next_game_state), depth))
-                        future_states += [chosen[0] for chosen in selected_states if chosen[0] is not None] 
-                    states_to_extend = future_states
-                    player_id = id_MAX
+        def heuristic(state: GameStateHex):     
             
-            # LAST STEP OF THE DESCENT
+            # Size, diameter, orientation and distance to the edges of different groups 
+            board = state.get_rep().get_env()
+            MAX_color = self.piece_type # R or B
+            shortest_path = np.inf 
 
-            else:
-                back_prop = {}
-                for parent_state in states_to_extend:
-                    if not parent_state.is_done():
-                        if player_id == id_MAX:
-                            v=-99999
-                            for extended_state in parent_state.generate_possible_stateful_actions():
-                                if heuristic(extended_state.next_game_state)>v:
-                                    v=heuristic(extended_state.next_game_state)
-                            back_prop[parent_state] = v
-                        
-                        if player_id == id_MIN:
-                            v=99999
-                            for extended_state in parent_state.generate_possible_stateful_actions():
-                                if heuristic(extended_state.next_game_state)<v:
-                                    v=heuristic(extended_state.next_game_state)
-                            back_prop[parent_state] = v
+            if MAX_color == 'R': # if MAX_player is RED => edges are at the top and bottom of the board
+                # BFS for shortest path between top and bottom edges
+                visited_states = {}
+                fringe = deque()
+                board = state.get_rep().get_env()
+                top_pieces = []
+                for i in range(14):
+                    top_pieces.append((0,i))
+                MAX_pieces = {}
+                MIN_pieces = {}
+                shortest_path = np.inf
+                found_edge = 0
+                # start with all the top valid pieces in the fringe
+                for piece in top_pieces:
+                    if piece in board:
+                        if board[piece].get_type() == MAX_color:
+                            visited_states[piece] = True
+                            fringe.appendleft((piece, 0)) # initial score of 0 for played pieces 
+                    else: 
+                        visited_states[piece] = True
+                        fringe.append((piece, 1))
+                
+                for piece in board:
+                    if board[piece].get_type() == MAX_color:
+                        MAX_pieces[piece] = True
                     else:
-                        back_prop[parent_state] = heuristic(parent_state)
-
-                # ASCENT 
-
-                for layer in range(limit - current_depth - 1):
-                    if layer != limit - current_depth - 2:
-                        upper_layer = {}
-                        if player_id == id_MAX:
-                            for child_state, value in back_prop.items():
-                                if family[child_state] in upper_layer and upper_layer[family[child_state]] > value:
-                                    upper_layer[family[child_state]] = value
-                                else: 
-                                    upper_layer[family[child_state]] = value
-                            player_id = id_MIN
-                        else:
-                            for child_state, value in back_prop.items():
-                                if family[child_state] in upper_layer and upper_layer[family[child_state]] < value:
-                                    upper_layer[family[child_state]] = value
-                                else: 
-                                    upper_layer[family[child_state]] = value
-                            player_id = id_MAX
-                        
-                        for found_final_state, infos in found_final_states.items():
-                            if infos[1] == limit - layer - 1: 
-                                back_prop[found_final_state] = infos[0]
-                        back_prop = upper_layer
-                        print(len(states_to_extend))
-
+                        MIN_pieces[piece] = True
+                
+                while fringe: 
+                    piece, score = fringe.popleft()
+                    i,j = piece
+                    for neighbor in state.get_neighbours(i,j).values():
+                        # Case the neighbor is an empty cell
+                        neighbor = neighbor[1]
+                        if neighbor not in visited_states and neighbor not in MAX_pieces and neighbor not in MIN_pieces:
+                            if neighbor[0] == 13:
+                                shortest_path = score + 1
+                                found_edge = 1
+                                break
+                            else:
+                                fringe.append((neighbor, score + 1))
+                                visited_states[neighbor] = True
+                        # Case the neighbor is a played piece (cell with a RED piece)
+                        elif neighbor not in visited_states and neighbor in MAX_pieces and neighbor not in MIN_pieces:
+                            if neighbor[0] == 13:
+                                shortest_path = score
+                                found_edge = 1
+                                break
+                            else:
+                                fringe.appendleft((neighbor, score))
+                                visited_states[neighbor] = True 
+                    if found_edge == 1:
+                        break
+            
+            else: # if MAX_player is BLUE => edges are at the left and the right of the board
+                # BFS for shortest path between left and right edges
+                visited_states = {}
+                fringe = deque()
+                board = state.get_rep().get_env()
+                top_pieces = []
+                for i in range(14):
+                    top_pieces.append((i,0))
+                MAX_pieces = {}
+                MIN_pieces = {}
+                shortest_path = np.inf
+                found_edge = 0
+                # start with all the top valid pieces in the fringe
+                for piece in top_pieces:
+                    if piece in board:
+                        if board[piece].get_type() == MAX_color:
+                            visited_states[piece] = True
+                            fringe.appendleft((piece, 0)) # initial score of 0 for played pieces 
+                    else: 
+                        visited_states[piece] = True
+                        fringe.append((piece, 1))
+                
+                for piece in board:
+                    if board[piece].get_type() == MAX_color:
+                        MAX_pieces[piece] = True
                     else:
-                        v=-99999
-                        for next_state, possible_value in back_prop.items():
-                            if possible_value > v:
-                                v=possible_value
-                                chosen_state = next_state
-                        for possible_action in current_state.generate_possible_stateful_actions():
-                            if possible_action.next_game_state == chosen_state:
-                                return possible_action
+                        MIN_pieces[piece] = True
+                
+                while fringe: 
+                    piece, score = fringe.popleft()
+                    i,j = piece
+                    for neighbor in state.get_neighbours(i,j).values():
+                        # Case the neighbor is an empty cell
+                        neighbor = neighbor[1]
+                        if neighbor not in visited_states and neighbor not in MAX_pieces and neighbor not in MIN_pieces:
+                            if neighbor[1] == 13:
+                                shortest_path = score + 1
+                                found_edge = 1
+                                break
+                            else:
+                                fringe.append((neighbor, score + 1))
+                                visited_states[neighbor] = True
+                        # Case the neighbor is a played piece (cell with a RED piece)
+                        elif neighbor not in visited_states and neighbor in MAX_pieces and neighbor not in MIN_pieces:
+                            if neighbor[1] == 13:
+                                shortest_path = score
+                                found_edge = 1
+                                break
+                            else:
+                                fringe.appendleft((neighbor, score))
+                                visited_states[neighbor] = True 
+                    if found_edge == 1:
+                        break
+            
+            if shortest_path !=0:
+                return 1/shortest_path
+            else: 
+                return np.inf
+                
+        depth = current_state.get_step()
+        limit_depth = depth + 3
+        width = 5
+
+        if current_state.get_step() !=0:
+
+            def player_MAX(current_state, alpha, beta, depth):
+                if current_state.is_done() or depth == limit_depth:
+                    return (heuristic(current_state), None)
+
+                best_estimation = -np.inf
+                best_action = None
+                number_of_actions = len(list(current_state.generate_possible_stateful_actions()))
+                if number_of_actions >= width:
+                    selected_actions = [(None, -np.inf) for _ in range(width)]
+                else: 
+                    selected_actions = [(None, -np.inf) for _ in range(number_of_actions)]
+                for action in current_state.generate_possible_stateful_actions():
+                    idx, value = min(enumerate(selected_actions), key=lambda x: x[1][1])
+                    h_value = heuristic(action.next_game_state)
+                    print(h_value)
+                    if  h_value > value[1]:
+                        selected_actions[idx] = (action, h_value)
+                for action, h_value in selected_actions:
+                    next_state = action.next_game_state
+                    next_estimation, _ = player_MIN(next_state, alpha, beta, depth + 1)
+                    if next_estimation > best_estimation:
+                        best_estimation = next_estimation
+                        best_action = action
+                        alpha = max(alpha, best_estimation)
+                    if best_estimation >= beta:
+                        return (best_estimation, best_action)
+                return (best_estimation, best_action)
+
+            def player_MIN(current_state, alpha, beta, depth):
+                if current_state.is_done() or depth == limit_depth:
+                    return (heuristic(current_state), None)
+
+                best_estimation = np.inf
+                best_action = None
+                number_of_actions = len(list(current_state.generate_possible_stateful_actions()))
+                if number_of_actions >= width:
+                    selected_actions = [(None, np.inf) for _ in range(width)]
+                else:
+                    selected_actions = [(None, np.inf) for _ in range(number_of_actions)]
+                for action in current_state.generate_possible_stateful_actions():
+                    idx, value = max(enumerate(selected_actions), key=lambda x: x[1][1])
+                    h_value = heuristic(action.next_game_state)
+                    print(h_value)
+                    if  h_value < value[1]:
+                        selected_actions[idx] = (action, h_value)
+                for action, h_value in selected_actions:
+                    next_state = action.next_game_state
+                    next_estimation, _ = player_MAX(next_state, alpha, beta, depth + 1)
+                    if next_estimation < best_estimation:
+                        best_estimation = next_estimation
+                        best_action = action
+                        beta = min(beta, best_estimation)
+                    if best_estimation <= alpha:
+                        return (best_estimation, best_action)
+                return (best_estimation, best_action)
+            
+            return player_MAX(current_state, -np.inf, np.inf, depth)[1]
+        else:
+            for action in current_state.generate_possible_stateful_actions():
+                if (7,7) in action.get_next_game_state().get_rep().get_env():
+                    return action
         raise MethodNotImplementedError()
