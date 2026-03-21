@@ -87,10 +87,7 @@ class MyPlayer(PlayerHex):
                                         new_gap = gap_len[(piece, color_type)] + 1
 
                                     gap_len[(neighbor_pos, neighbor_type)] = new_gap
-                                    max_gap_path[(neighbor_pos, neighbor_type)] = max(
-                                        max_gap_path[(piece, color_type)],
-                                        new_gap
-                                    )
+                                    max_gap_path[(neighbor_pos, neighbor_type)] = max(max_gap_path[(piece, color_type)],new_gap)
 
                                     if neighbor_type == 'R':
                                         fringe.appendleft((neighbor_pos,neighbor_type))
@@ -156,10 +153,7 @@ class MyPlayer(PlayerHex):
                                         new_gap = gap_len[(piece, color_type)] + 1
 
                                     gap_len[(neighbor_pos, neighbor_type)] = new_gap
-                                    max_gap_path[(neighbor_pos, neighbor_type)] = max(
-                                        max_gap_path[(piece, color_type)],
-                                        new_gap
-                                    )
+                                    max_gap_path[(neighbor_pos, neighbor_type)] = max(max_gap_path[(piece, color_type)],new_gap)
 
                                     if neighbor_type == 'B':
                                         fringe.appendleft((neighbor_pos,neighbor_type))
@@ -186,31 +180,54 @@ class MyPlayer(PlayerHex):
             column_out = [-1, 1, 2, 1, -1, -2]
             line_in = [0, -1, -1, 0, 1, 1]
             column_in = [-1, 0, 1, 1, 0, -1]
+            line_out_other = [0, -2, -2, 0, 2, 2]
+            column_out_other = [-2, 0, 2, 2, 0, -2]
+
+            outer_crown_other = [(i + dx, j + dy) for dx, dy in zip(line_out_other, column_out_other)]
             outer_crown = [(i + dx, j + dy) for dx, dy in zip(line_out, column_out)]
             inner_crown = [(i + dx, j + dy) for dx, dy in zip(line_in, column_in)]
             free_two_bridge = {}
             partially_intercepted_two_bridge = {}
+            completed_two_bridges = {}
+
+            board_center = {}
+            for k in [6,7]:
+                for l in range(14):
+                    board_center[(l,k)] = True
             
             if MAX_color == 'R':
                 for idx, cell in enumerate(outer_crown):
+                    # Partially intercepted two-bridges and 
+                    if cell in MAX_pieces and inner_crown[idx] in MIN_pieces and inner_crown[(idx + 1) % 6] not in board:
+                        partially_intercepted_two_bridge[(central_cell, cell)] = inner_crown[(idx + 1) % 6]
+                    elif cell in MAX_pieces and inner_crown[idx] not in board and inner_crown[(idx + 1) % 6] in MIN_pieces:
+                        partially_intercepted_two_bridge[(central_cell, cell)] = inner_crown[idx]
+                    elif cell in MAX_pieces and (inner_crown[idx] in MAX_pieces or inner_crown[(idx + 1) % 6] in MAX_pieces) and outer_crown[idx] not in MAX_pieces and outer_crown[(idx + 1) % 6]:
+                        completed_two_bridges[(central_cell, cell)] = True
+
+                    # Two-bridges
+                    if central_cell in board_center and cell in MAX_pieces and inner_crown[idx] not in board and inner_crown[(idx + 1) % 6] not in board:
+                        free_two_bridge[((central_cell, cell))] = True
+                    elif j < 6:
+                        if idx in [1,2,3,4] and cell in MAX_pieces and inner_crown[idx] not in board and inner_crown[(idx + 1) % 6] not in board:
+                            free_two_bridge[((central_cell, cell))] = True
+                    elif j > 7:
+                        if idx in [0,1,4,5] and cell in MAX_pieces and inner_crown[idx] not in board and inner_crown[(idx + 1) % 6] not in board:
+                            free_two_bridge[((central_cell, cell))] = True
+
+            else:
+                for idx in [0, 2, 3, 5]:
+                    cell = outer_crown[idx]
                     if cell in MAX_pieces and inner_crown[idx] not in board and inner_crown[(idx + 1) % 6] not in board:
                         free_two_bridge[(central_cell, cell)] = True
                     elif cell in MAX_pieces and inner_crown[idx] in MIN_pieces and inner_crown[(idx + 1) % 6] not in board:
-                        partially_intercepted_two_bridge[(central_cell, cell)] = inner_crown[(idx + 1) % 6] 
+                        partially_intercepted_two_bridge[(central_cell, cell)] = inner_crown[(idx + 1) % 6]
                     elif cell in MAX_pieces and inner_crown[idx] not in board and inner_crown[(idx + 1) % 6] in MIN_pieces:
-                        partially_intercepted_two_bridge[(central_cell, cell)] = inner_crown[idx] 
-            else:
-                for idx in [0, 2, 3, 5]:
-                    for cell in outer_crown:
-                        if cell in MAX_pieces and inner_crown[idx] not in board and inner_crown[(idx + 1) % 6] not in board:
-                            free_two_bridge[(central_cell, cell)] = True
-                        elif cell in MAX_pieces and inner_crown[idx] in MIN_pieces and inner_crown[(idx + 1) % 6] not in board:
-                            partially_intercepted_two_bridge[(central_cell, cell)] = inner_crown[(idx + 1) % 6] 
-                        elif cell in MAX_pieces and inner_crown[idx] not in board and inner_crown[(idx + 1) % 6] in MIN_pieces:
-                            partially_intercepted_two_bridge[(central_cell, cell)] = inner_crown[idx] 
+                        partially_intercepted_two_bridge[(central_cell, cell)] = inner_crown[idx]
+                    elif cell in MAX_pieces and (inner_crown[idx] in MAX_pieces or inner_crown[(idx + 1) % 6] in MAX_pieces) and outer_crown[idx] not in MAX_pieces and outer_crown[(idx + 1) % 6]:
+                        completed_two_bridges[(central_cell, cell)] = True
 
-            return free_two_bridge, partially_intercepted_two_bridge
-        
+            return free_two_bridge, partially_intercepted_two_bridge, completed_two_bridges
 
         # EDGE DETECTION 
         def close_edge_detection(MAX_pieces, MIN_pieces, MAX_color, board):
@@ -226,11 +243,23 @@ class MyPlayer(PlayerHex):
                     i,j = piece
                     if i == 1 and j>=0 and j+1<=13 and (0,j) in MIN_pieces and (0,j+1) in MIN_pieces:
                         total_blocking[piece] = True
+                    elif (i == 1 and j>=0 and j+1<=13 and ((0,j) in MIN_pieces or (0,j+1) in MIN_pieces)) or (i == 12 and j<=13 and j-1>=0 and ((13,j-1) in MIN_pieces or (13,j) in MIN_pieces)):
+                        blocking_close_to_edge[piece] = True
+                    elif i == 1 and j>=0 and j+1<=13 and (0,j) not in board and (0,j+1) not in board:
+                        close_to_edge_pieces[piece] = True
+                    elif i == 12 and j<=13 and j-1>=0 and (13,j-1) not in board and (13,j) not in board:
+                        close_to_edge_pieces[piece] = True
             else:
                 for piece in MAX_pieces:
                     i,j = piece
                     if j == 1 and i>=0 and i+1<=13 and (i,0) in MIN_pieces and (i+1,0) in MIN_pieces:
                         total_blocking[piece] = True
+                    elif (j == 1 and i>=0 and i+1<=13 and ((i,0) in MIN_pieces or (i+1,0) in MIN_pieces)) or (j == 12 and i-1>=0 and i<=13 and ((i,13) in MIN_pieces or (i-1,13) in MIN_pieces)):
+                        blocking_close_to_edge[piece] = True
+                    elif j == 1 and i>=0 and i+1<=13 and (i,0) not in board and (i+1,0) not in board:
+                        close_to_edge_pieces[piece] = True
+                    elif j == 12 and i-1>=0 and i<=13 and (i,13) not in board and (i-1,13) not in board:
+                        close_to_edge_pieces[piece] = True
             
             # if MAX_color == 'R':
             #     for piece in MAX_pieces:
@@ -239,7 +268,7 @@ class MyPlayer(PlayerHex):
             #             close_to_edge_pieces[piece] = True
             #         elif i == 12 and j<=13 and j-1>=0 and (13,j-1) not in board and (13,j) not in board:
             #             close_to_edge_pieces[piece] = True
-            #         elif (i == 1 and j>=0 and j+1<=13 and ((0,j) in MIN_pieces or (0,j+1) in MIN_pieces)) or (i == 12 and j<=13 and j-1>=0 and ((13,j-1) in MIN_pieces or (13,j) in MIN_pieces)):
+            #         if (i == 1 and j>=0 and j+1<=13 and ((0,j) in MIN_pieces or (0,j+1) in MIN_pieces)) or (i == 12 and j<=13 and j-1>=0 and ((13,j-1) in MIN_pieces or (13,j) in MIN_pieces)):
             #             blocking_close_to_edge[piece] = True
             #         elif (piece not in confirmed_edge and (0,j) not in edge_pieces) and (i == 1 and j>=0 and j+1<=13 and (0,j) in MAX_pieces):
             #             confirmed_edge[piece] = True
@@ -345,10 +374,22 @@ class MyPlayer(PlayerHex):
                 BLUE_pieces = MAX_pieces
 
             if not state.is_done():
+                
+                # ---------- ORIENTATION ----------
+                MAX_optimal_length, max_gap = shortest_path_computation(state, board, MAX_color, RED_pieces, BLUE_pieces)
+                w_len_MAX_path = 30
+
+                if depth <= 20:
+                    w_max_gap = 5
+                else:
+                    w_max_gap = 0
+
+                h_value -= (MAX_optimal_length*w_len_MAX_path  + max_gap*w_max_gap)
+
                 # ---------- GOOD GENERAL CONNECTIVITY ----------
                 # TWO BRIDGES DETECTION
                 for piece in MAX_pieces:
-                    two_bridges, int_two_bridges = two_bridge_detection(piece, MAX_pieces, MIN_pieces, MAX_color, board)
+                    two_bridges, int_two_bridges, strong_connexion = two_bridge_detection(piece, MAX_pieces, MIN_pieces, MAX_color, board)
                     for bridge in two_bridges:
                         rev_bridge = bridge[::-1]
                         if bridge not in free_two_bridges and rev_bridge not in free_two_bridges:
@@ -360,19 +401,15 @@ class MyPlayer(PlayerHex):
             
                 n_free_two_bridges = len(free_two_bridges)
                 n_int_two_bridges = len(partially_intercepted_two_bridges)
+                n_completed_two_bridges = len(strong_connexion)
                 w_free_two_bridges = 8
-                w_int_two_bridges = 25
-                h_value += n_free_two_bridges*w_free_two_bridges - n_int_two_bridges*w_int_two_bridges
+                w_int_two_bridges = 30
+                w_strong_connexion = 0
 
-                # ---------- ORIENTATION ----------
-                MAX_optimal_length, max_gap = shortest_path_computation(state, board, MAX_color, RED_pieces, BLUE_pieces)
-                w_len_MAX_path = 20
-                if depth <= 14:
-                    w_max_gap = 5
-                else:
-                    w_max_gap = 0
+                if max_gap == 1:
+                    w_strong_connexion = 8
 
-                h_value -= (MAX_optimal_length*w_len_MAX_path  + max_gap*w_max_gap)
+                h_value += n_free_two_bridges*w_free_two_bridges + n_completed_two_bridges*w_strong_connexion - n_int_two_bridges*w_int_two_bridges 
 
                 # ---------- EDGE CONNECTION ----------
                 # Close edge 
@@ -381,18 +418,18 @@ class MyPlayer(PlayerHex):
                 n_blocking_close_edge = len(MAX_blocking_close_edge)
                 n_confirmed_edges = len(MAX_confirmed_edges)
                 n_total_blocking = len(MAX_total_blocking)
-                w_close_edges = 0
-                w_blocking_close_edge = 20
-                w_confirmed_edges = 5
-                w_total_blocking = 20
-
+                w_close_edges = 10
+                w_blocking_close_edge = 40
+                w_confirmed_edges = 30
+                w_total_blocking = 60
+                
                 h_value += (n_close_edges*w_close_edges + n_confirmed_edges*w_confirmed_edges - n_blocking_close_edge*w_blocking_close_edge - n_total_blocking*w_total_blocking)
 
                 # ---------- BLOCKING ----------
                 MAX_blocked_pieces, MIN_blocked_pieces = potential_blocking_detection(RED_pieces, BLUE_pieces, MAX_color)
                 n_MAX_blocked_pieces = len(MAX_blocked_pieces)
                 n_MIN_blocked_pieces = len(MIN_blocked_pieces)
-                w_MAX_blocked_pieces = 70
+                w_MAX_blocked_pieces = 100
                 w_MIN_blocked_pieces = 20
 
                 h_value += (n_MIN_blocked_pieces*w_MIN_blocked_pieces - n_MAX_blocked_pieces*w_MAX_blocked_pieces)
