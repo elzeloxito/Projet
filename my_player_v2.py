@@ -3,6 +3,7 @@ from seahorse.game.action import Action
 from game_state_hex import GameStateHex
 from seahorse.utils.custom_exceptions import MethodNotImplementedError
 import numpy as np
+import random
 from collections import deque
 
 class MyPlayer(PlayerHex):
@@ -202,29 +203,33 @@ class MyPlayer(PlayerHex):
                         partially_intercepted_two_bridge[(central_cell, cell)] = inner_crown[(idx + 1) % 6]
                     elif cell in MAX_pieces and inner_crown[idx] not in board and inner_crown[(idx + 1) % 6] in MIN_pieces:
                         partially_intercepted_two_bridge[(central_cell, cell)] = inner_crown[idx]
-                    elif cell in MAX_pieces and (inner_crown[idx] in MAX_pieces or inner_crown[(idx + 1) % 6] in MAX_pieces) and outer_crown[idx] not in MAX_pieces and outer_crown[(idx + 1) % 6]:
+                    elif cell in MAX_pieces and (inner_crown[idx] in MAX_pieces and inner_crown[(idx + 1) % 6] not in MAX_pieces) and outer_crown[idx] not in MAX_pieces and outer_crown[(idx + 1) % 6]:
+                        completed_two_bridges[(central_cell, cell)] = True
+                    elif cell in MAX_pieces and (inner_crown[idx] not in MAX_pieces and inner_crown[(idx + 1) % 6] in MAX_pieces) and outer_crown[idx] not in MAX_pieces and outer_crown[(idx + 1) % 6]:
                         completed_two_bridges[(central_cell, cell)] = True
 
                     # Two-bridges
-                    if central_cell in board_center and cell in MAX_pieces and inner_crown[idx] not in board and inner_crown[(idx + 1) % 6] not in board:
+                    if central_cell in board_center and cell in MAX_pieces and inner_crown[idx] not in board and inner_crown[(idx + 1) % 6] not in board and outer_crown[(idx - 1) % 6] not in MAX_pieces and outer_crown[(idx + 1) % 6] not in MAX_pieces:
                         free_two_bridge[((central_cell, cell))] = True
                     elif j < 6:
-                        if idx in [1,2,3,4] and cell in MAX_pieces and inner_crown[idx] not in board and inner_crown[(idx + 1) % 6] not in board:
+                        if idx in [1,2,3,4] and cell in MAX_pieces and inner_crown[idx] not in board and inner_crown[(idx + 1) % 6] not in board and outer_crown[(idx - 1) % 6] not in MAX_pieces and outer_crown[(idx + 1) % 6] not in MAX_pieces:
                             free_two_bridge[((central_cell, cell))] = True
                     elif j > 7:
-                        if idx in [0,1,4,5] and cell in MAX_pieces and inner_crown[idx] not in board and inner_crown[(idx + 1) % 6] not in board:
+                        if idx in [0,1,4,5] and cell in MAX_pieces and inner_crown[idx] not in board and inner_crown[(idx + 1) % 6] not in board and outer_crown[(idx - 1) % 6] not in MAX_pieces and outer_crown[(idx + 1) % 6] not in MAX_pieces:
                             free_two_bridge[((central_cell, cell))] = True
 
             else:
                 for idx in [0, 2, 3, 5]:
                     cell = outer_crown[idx]
-                    if cell in MAX_pieces and inner_crown[idx] not in board and inner_crown[(idx + 1) % 6] not in board:
+                    if cell in MAX_pieces and inner_crown[idx] not in board and inner_crown[(idx + 1) % 6] not in board and outer_crown[(idx - 1) % 6] not in MAX_pieces and outer_crown[(idx + 1) % 6] not in MAX_pieces:
                         free_two_bridge[(central_cell, cell)] = True
-                    elif cell in MAX_pieces and inner_crown[idx] in MIN_pieces and inner_crown[(idx + 1) % 6] not in board:
+                    elif cell in MAX_pieces and inner_crown[idx] in MIN_pieces and inner_crown[(idx + 1) % 6] not in board and outer_crown[(idx - 1) % 6] not in MAX_pieces and outer_crown[(idx + 1) % 6] not in MAX_pieces:
                         partially_intercepted_two_bridge[(central_cell, cell)] = inner_crown[(idx + 1) % 6]
-                    elif cell in MAX_pieces and inner_crown[idx] not in board and inner_crown[(idx + 1) % 6] in MIN_pieces:
+                    elif cell in MAX_pieces and inner_crown[idx] not in board and inner_crown[(idx + 1) % 6] in MIN_pieces and outer_crown[(idx - 1) % 6] not in MAX_pieces and outer_crown[(idx + 1) % 6] not in MAX_pieces:
                         partially_intercepted_two_bridge[(central_cell, cell)] = inner_crown[idx]
-                    elif cell in MAX_pieces and (inner_crown[idx] in MAX_pieces or inner_crown[(idx + 1) % 6] in MAX_pieces) and outer_crown[idx] not in MAX_pieces and outer_crown[(idx + 1) % 6]:
+                    elif cell in MAX_pieces and (inner_crown[idx] in MAX_pieces and inner_crown[(idx + 1) % 6] not in MAX_pieces) and outer_crown[idx] not in MAX_pieces and outer_crown[(idx + 1) % 6] not in MAX_pieces:
+                        completed_two_bridges[(central_cell, cell)] = True
+                    elif cell in MAX_pieces and (inner_crown[idx] not in MAX_pieces and inner_crown[(idx + 1) % 6] in MAX_pieces) and outer_crown[idx] not in MAX_pieces and outer_crown[(idx + 1) % 6] not in MAX_pieces:
                         completed_two_bridges[(central_cell, cell)] = True
 
             return free_two_bridge, partially_intercepted_two_bridge, completed_two_bridges
@@ -232,34 +237,56 @@ class MyPlayer(PlayerHex):
         # EDGE DETECTION 
         def close_edge_detection(MAX_pieces, MIN_pieces, MAX_color, board):
 
-            close_to_edge_pieces = {}
-            blocking_close_to_edge = {}
-            confirmed_edge = {}
-            edge_pieces = {}
-            total_blocking = {}
+            MAX_close_to_edge_pieces = {}
+            MAX_blocking_close_to_edge = {}
+            MAX_confirmed_edge = {}
+            MAX_total_blocking = {}
+
+            MIN_close_to_edge_pieces = {}
+            MIN_blocking_close_to_edge = {}
+            MIN_confirmed_edge = {}
+            MIN_total_blocking = {}
 
             if MAX_color == 'R':
                 for piece in MAX_pieces:
                     i,j = piece
                     if i == 1 and j>=0 and j+1<=13 and (0,j) in MIN_pieces and (0,j+1) in MIN_pieces:
-                        total_blocking[piece] = True
+                        MAX_total_blocking[piece] = True
                     elif (i == 1 and j>=0 and j+1<=13 and ((0,j) in MIN_pieces or (0,j+1) in MIN_pieces)) or (i == 12 and j<=13 and j-1>=0 and ((13,j-1) in MIN_pieces or (13,j) in MIN_pieces)):
-                        blocking_close_to_edge[piece] = True
+                        MAX_blocking_close_to_edge[piece] = True
                     elif i == 1 and j>=0 and j+1<=13 and (0,j) not in board and (0,j+1) not in board:
-                        close_to_edge_pieces[piece] = True
+                        MAX_close_to_edge_pieces[piece] = True
                     elif i == 12 and j<=13 and j-1>=0 and (13,j-1) not in board and (13,j) not in board:
-                        close_to_edge_pieces[piece] = True
+                        MAX_close_to_edge_pieces[piece] = True
+
+                    if j == 1 and i>=0 and i+1<=13 and (i,0) in MIN_pieces and (i+1,0) in MIN_pieces:
+                        MIN_total_blocking[piece] = True
+                    elif (j == 1 and i>=0 and i+1<=13 and ((i,0) in MIN_pieces or (i+1,0) in MIN_pieces)) or (j == 12 and i-1>=0 and i<=13 and ((i,13) in MIN_pieces or (i-1,13) in MIN_pieces)):
+                        MIN_blocking_close_to_edge[piece] = True
+                    elif j == 1 and i>=0 and i+1<=13 and (i,0) not in board and (i+1,0) not in board:
+                        MIN_close_to_edge_pieces[piece] = True
+                    elif j == 12 and i-1>=0 and i<=13 and (i,13) not in board and (i-1,13) not in board:
+                        MIN_close_to_edge_pieces[piece] = True
             else:
                 for piece in MAX_pieces:
                     i,j = piece
                     if j == 1 and i>=0 and i+1<=13 and (i,0) in MIN_pieces and (i+1,0) in MIN_pieces:
-                        total_blocking[piece] = True
+                        MAX_total_blocking[piece] = True
                     elif (j == 1 and i>=0 and i+1<=13 and ((i,0) in MIN_pieces or (i+1,0) in MIN_pieces)) or (j == 12 and i-1>=0 and i<=13 and ((i,13) in MIN_pieces or (i-1,13) in MIN_pieces)):
-                        blocking_close_to_edge[piece] = True
+                        MAX_blocking_close_to_edge[piece] = True
                     elif j == 1 and i>=0 and i+1<=13 and (i,0) not in board and (i+1,0) not in board:
-                        close_to_edge_pieces[piece] = True
+                        MAX_close_to_edge_pieces[piece] = True
                     elif j == 12 and i-1>=0 and i<=13 and (i,13) not in board and (i-1,13) not in board:
-                        close_to_edge_pieces[piece] = True
+                        MAX_close_to_edge_pieces[piece] = True
+
+                    if i == 1 and j>=0 and j+1<=13 and (0,j) in MIN_pieces and (0,j+1) in MIN_pieces:
+                        MIN_total_blocking[piece] = True
+                    elif (i == 1 and j>=0 and j+1<=13 and ((0,j) in MIN_pieces or (0,j+1) in MIN_pieces)) or (i == 12 and j<=13 and j-1>=0 and ((13,j-1) in MIN_pieces or (13,j) in MIN_pieces)):
+                        MIN_blocking_close_to_edge[piece] = True
+                    elif i == 1 and j>=0 and j+1<=13 and (0,j) not in board and (0,j+1) not in board:
+                        MIN_close_to_edge_pieces[piece] = True
+                    elif i == 12 and j<=13 and j-1>=0 and (13,j-1) not in board and (13,j) not in board:
+                        MIN_close_to_edge_pieces[piece] = True
             
             # if MAX_color == 'R':
             #     for piece in MAX_pieces:
@@ -304,41 +331,98 @@ class MyPlayer(PlayerHex):
             #             confirmed_edge[piece] = True
             #             edge_pieces[(i-1,13)] = True
 
-            return total_blocking, close_to_edge_pieces, blocking_close_to_edge, confirmed_edge
+            MAX_stats = [MAX_total_blocking, MAX_close_to_edge_pieces, MAX_blocking_close_to_edge]
+            MIN_stats = [MIN_total_blocking, MIN_close_to_edge_pieces, MIN_blocking_close_to_edge]
+
+            return MAX_stats, MIN_stats
         
-        def potential_blocking_detection(RED_pieces, BLUE_pieces, MAX_color):
+        def potential_blocking_detection(RED_pieces, BLUE_pieces, MAX_color, board):
 
             RED_blocked_pieces = {}
             BLUE_blocked_pieces = {}
 
-            # for piece_infos in RED_path:
-            #     piece_pos, piece_type = piece_infos
-            #     i,j = piece_pos
-            #     # Upper blocking
-            #     line_in = [0, -1, -1, 0, 1, 1]
-            #     column_in = [-1, 0, 1, 1, 0, -1]
-            #     inner_crown = [(i + dx, j + dy) for dx, dy in zip(line_in, column_in)]
-            #     for idx, adj_cell in enumerate(inner_crown):
-            #         if inner_crown[idx] in BLUE_pieces and inner_crown[(idx + 1) % 6] in BLUE_pieces:
-            #             RED_blocked_pieces[piece_pos] = True
-
+            # Red pieces are blocked
             for piece in RED_pieces:
                 i,j = piece
-                # Left blocking
+                # Upper
+                # Classical blocking 1
+                empty_pieces_upper1 = [(i-1,j-1), (i-1,j), (i-1,j+1), (i-1,j+2), (i-2,j), (i-2,j+2)]
+                empty_pieces_upper2 = [(i-1,j+2), (i-1,j+1), (i-2,j+1), (i-1,j-1)]
+                empty_pieces_upper3 = [(i-1,j-1), (i-1,j), (i-2,j+1),(i-1,j+1)]
                 if (i-1,j) in BLUE_pieces and (i-1,j+1) in BLUE_pieces:
                     RED_blocked_pieces[piece] = True
-                # Right blocking
+                elif not any(pos in RED_pieces for pos in empty_pieces_upper1):
+                    if (((i,j-1) in BLUE_pieces and (i,j+1) in BLUE_pieces and (i-2,j+1) in BLUE_pieces) and ((i+1,j-1) in RED_pieces or (i+1,j) in RED_pieces)):
+                        RED_blocked_pieces[piece] = True
+                    elif ((i,j-1) in BLUE_pieces and (i-2,j+1) in BLUE_pieces) or ((i,j+1) in BLUE_pieces and (i-2,j+1) in BLUE_pieces):
+                        RED_blocked_pieces[piece] = True
+                elif not any(pos in RED_pieces for pos in empty_pieces_upper2):
+                    if (i-1,j) in BLUE_pieces and (i-2,j+2) in BLUE_pieces:
+                        RED_blocked_pieces[piece] = True
+                elif not any(pos in RED_pieces for pos in empty_pieces_upper3):
+                    if (i-1,j+1) in BLUE_pieces and (i-2,j) in BLUE_pieces:
+                        RED_blocked_pieces[piece] = True
+
+                # Lower
+                # Classical blocking 1
+                empty_pieces1 = [(i+1,j-2), (i+1,j-1), (i+1,j), (i+1,j+1), (i+2,j), (i+2,j-2)]
+                empty_pieces2 = [(i+1,j-2), (i+1,j-1), (i+2,j-1), (i+1,j+1)]
+                empty_pieces3 = [(i+1,j+1), (i+1,j), (i+2,j-1), (i+1,j-2)]
                 if (i+1,j-1) in BLUE_pieces and (i+1,j) in BLUE_pieces:
                     RED_blocked_pieces[piece] = True
-
+                elif not any(pos in RED_pieces for pos in empty_pieces1):
+                    # Combined block 2
+                    if (((i,j+1) in BLUE_pieces and (i,j-1) in BLUE_pieces and (i+2,j-1) in BLUE_pieces) and ((i-1,j+1) in RED_pieces or (i-1,j) in RED_pieces)):
+                        RED_blocked_pieces[piece] = True
+                    # Combined block 1
+                    elif ((i,j+1) in BLUE_pieces and (i+2,j-1) in BLUE_pieces) or ((i,j-1) in BLUE_pieces and (i+2,j-1) in BLUE_pieces):
+                        RED_blocked_pieces[piece] = True
+                elif not any(pos in RED_pieces for pos in empty_pieces2):
+                    # Classical block 2
+                    if (i+1,j) in BLUE_pieces and (i+2,j-2) in BLUE_pieces:
+                        RED_blocked_pieces[piece] = True
+                elif not any(pos in RED_pieces for pos in empty_pieces3):
+                    if (i+1,j-1) in BLUE_pieces and (i+2,j) in BLUE_pieces:
+                        RED_blocked_pieces[piece] = True
+            
+            # Blue pieces are blocked
             for piece in BLUE_pieces:
                 i,j = piece
-                # Left blocking
+                # Left
+                empty_pieces_left1 = [(i-1,j-1), (i,j-1), (i+1,j-1), (i+2,j-1), (i,j-2), (i+2,j-2)]
+                empty_pieces_left2 = [(i+2,j-1), (i+1,j-1), (i+1,j-2), (i-1,j-1)]
+                empty_pieces_left3 = [(i-1,j-1), (i,j-1), (i+1,j-2), (i+1,j-1)]
                 if (i,j-1) in RED_pieces and (i+1,j-1) in RED_pieces:
                     BLUE_blocked_pieces[piece] = True
-                # Right blocking
-                if (i,j+1) in RED_pieces and (i-1,j+1) in RED_pieces:
+                elif not any(pos in BLUE_pieces for pos in empty_pieces_left1):
+                    if (((i-1,j) in RED_pieces and (i+1,j) in RED_pieces and (i+1,j-2) in RED_pieces) and ((i-1,j+1) in BLUE_pieces or (i,j+1) in BLUE_pieces)):
+                        BLUE_blocked_pieces[piece] = True
+                    elif ((i-1,j) in RED_pieces and (i+1,j-2) in RED_pieces) or ((i+1,j) in RED_pieces and (i+1,j-2) in RED_pieces):
+                        BLUE_blocked_pieces[piece] = True
+                elif not any(pos in BLUE_pieces for pos in empty_pieces_left2):
+                    if (i,j-1) in RED_pieces and (i+2,j-2) in RED_pieces:
+                        BLUE_blocked_pieces[piece] = True
+                elif not any(pos in BLUE_pieces for pos in empty_pieces_left3):
+                    if (i+1,j-1) in RED_pieces and (i,j-2) in RED_pieces:
+                        BLUE_blocked_pieces[piece] = True
+
+                # Right
+                empty_pieces_right1 = [(i-1,j+1), (i,j+1), (i+1,j+1), (i+2,j+1), (i,j+2), (i+2,j+2)]
+                empty_pieces_right2 = [(i+2,j+1), (i+1,j+1), (i+1,j+2), (i-1,j+1)]
+                empty_pieces_right3 = [(i-1,j+1), (i,j+1), (i+1,j+2), (i+1,j+1)]
+                if (i,j+1) in RED_pieces and (i+1,j+1) in RED_pieces:
                     BLUE_blocked_pieces[piece] = True
+                elif not any(pos in BLUE_pieces for pos in empty_pieces_right1):
+                    if (((i-1,j) in RED_pieces and (i+1,j) in RED_pieces and (i+1,j+2) in RED_pieces) and ((i-1,j-1) in BLUE_pieces or (i,j-1) in BLUE_pieces)):
+                        BLUE_blocked_pieces[piece] = True
+                    elif ((i-1,j) in RED_pieces and (i+1,j+2) in RED_pieces) or ((i+1,j) in RED_pieces and (i+1,j+2) in RED_pieces):
+                        BLUE_blocked_pieces[piece] = True
+                elif not any(pos in BLUE_pieces for pos in empty_pieces_right2):
+                    if (i,j+1) in RED_pieces and (i+2,j+2) in RED_pieces:
+                        BLUE_blocked_pieces[piece] = True
+                elif not any(pos in BLUE_pieces for pos in empty_pieces_right3):
+                    if (i+1,j+1) in RED_pieces and (i,j+2) in RED_pieces:
+                        BLUE_blocked_pieces[piece] = True
 
             if MAX_color == 'R':
                 MAX_blocked_pieces = RED_blocked_pieces
@@ -360,6 +444,8 @@ class MyPlayer(PlayerHex):
             partially_intercepted_two_bridges = {}
             h_value = 0
 
+            print(board)
+
             for piece, piece_type in board.items():
                 if piece_type.get_owner_id() == id_MAX:
                     MAX_pieces[piece] = True
@@ -377,10 +463,10 @@ class MyPlayer(PlayerHex):
                 
                 # ---------- ORIENTATION ----------
                 MAX_optimal_length, max_gap = shortest_path_computation(state, board, MAX_color, RED_pieces, BLUE_pieces)
-                w_len_MAX_path = 30
+                w_len_MAX_path = 8
 
                 if depth <= 20:
-                    w_max_gap = 5
+                    w_max_gap = 1
                 else:
                     w_max_gap = 0
 
@@ -402,35 +488,38 @@ class MyPlayer(PlayerHex):
                 n_free_two_bridges = len(free_two_bridges)
                 n_int_two_bridges = len(partially_intercepted_two_bridges)
                 n_completed_two_bridges = len(strong_connexion)
-                w_free_two_bridges = 8
-                w_int_two_bridges = 30
+                w_free_two_bridges = 10
+                w_int_two_bridges = 40
                 w_strong_connexion = 0
 
                 if max_gap == 1:
-                    w_strong_connexion = 8
+                    w_strong_connexion = 15
 
                 h_value += n_free_two_bridges*w_free_two_bridges + n_completed_two_bridges*w_strong_connexion - n_int_two_bridges*w_int_two_bridges 
 
                 # ---------- EDGE CONNECTION ----------
                 # Close edge 
-                MAX_total_blocking, MAX_close_edges, MAX_blocking_close_edge, MAX_confirmed_edges = close_edge_detection(MAX_pieces, MIN_pieces, MAX_color, board)
-                n_close_edges = len(MAX_close_edges)
-                n_blocking_close_edge = len(MAX_blocking_close_edge)
-                n_confirmed_edges = len(MAX_confirmed_edges)
-                n_total_blocking = len(MAX_total_blocking)
-                w_close_edges = 10
-                w_blocking_close_edge = 40
-                w_confirmed_edges = 30
-                w_total_blocking = 60
+                MAX_stats, MIN_stats = close_edge_detection(MAX_pieces, MIN_pieces, MAX_color, board)
+                MAX_total_blocking, MAX_close_edges, MAX_blocking_close_edge = MAX_stats
+                MAX_n_close_edges = len(MAX_close_edges)
+                MAX_n_blocking_close_edge = len(MAX_blocking_close_edge)
+                MAX_n_total_blocking = len(MAX_total_blocking)
+
+                MIN_total_blocking, MIN_close_edges, MIN_blocking_close_edge = MIN_stats
+                MIN_n_total_blocking = len(MIN_total_blocking)
+
+                w_close_edges = 3
+                w_blocking_close_edge = 20
+                w_total_blocking = 30
                 
-                h_value += (n_close_edges*w_close_edges + n_confirmed_edges*w_confirmed_edges - n_blocking_close_edge*w_blocking_close_edge - n_total_blocking*w_total_blocking)
+                h_value += (MIN_n_total_blocking*w_total_blocking + MAX_n_close_edges*w_close_edges - MAX_n_blocking_close_edge*w_blocking_close_edge - MAX_n_total_blocking*w_total_blocking)
 
                 # ---------- BLOCKING ----------
-                MAX_blocked_pieces, MIN_blocked_pieces = potential_blocking_detection(RED_pieces, BLUE_pieces, MAX_color)
+                MAX_blocked_pieces, MIN_blocked_pieces = potential_blocking_detection(RED_pieces, BLUE_pieces, MAX_color, board)
                 n_MAX_blocked_pieces = len(MAX_blocked_pieces)
                 n_MIN_blocked_pieces = len(MIN_blocked_pieces)
-                w_MAX_blocked_pieces = 100
-                w_MIN_blocked_pieces = 20
+                w_MAX_blocked_pieces = 40
+                w_MIN_blocked_pieces = 40
 
                 h_value += (n_MIN_blocked_pieces*w_MIN_blocked_pieces - n_MAX_blocked_pieces*w_MAX_blocked_pieces)
             
@@ -452,10 +541,10 @@ class MyPlayer(PlayerHex):
             limit_depth = depth + 3
             width = 5
         else: 
-            limit_depth = depth + 5
+            limit_depth = depth + 4
             width = 5
         id_MAX = current_state.active_player.get_id()
-        first_moves = list(range(4))
+        first_moves = list(range(3))
 
         if depth == 1:
             first_MIN_piece = next(iter(board))
@@ -541,38 +630,109 @@ class MyPlayer(PlayerHex):
         # ------------------------------------------------ OPENING MOVES ------------------------------------------------
         # For the first moves 
         else:
-            MAX_color = self.piece_type
-            center_pieces = []
-            for i in range(5,9):
-                for j in range(5,9):
-                    center_pieces.append((i,j))
-
+            MAX_color = self.piece_type #couleur du joueur MAX
+            
             if depth == 0: # => player MAX is a RED player - first move
                 for action in current_state.generate_possible_stateful_actions():
                     if (10,3) in action.get_next_game_state().get_rep().get_env():
-                        return action
+                        return action #11d
                     
             elif depth == 1: # => player MAX is a BLUE player - first move
-                for action in current_state.generate_possible_stateful_actions():
-                    if (10,3) in action.get_next_game_state().get_rep().get_env():
-                        return action
+                MIN_piece = next(iter(board))
+                i,j = MIN_piece
+                if MIN_piece == (10,3): #11d
+                    for action in current_state.generate_possible_stateful_actions():
+                        if (3,10) in action.get_next_game_state().get_rep().get_env():
+                            return action #4k 
+                elif MIN_piece == (3,10): #sym 4k
+                    for action in current_state.generate_possible_stateful_actions():
+                        if (10,3) in action.get_next_game_state().get_rep().get_env():
+                            return action #11d
+                elif i+j == 13: #diag
+                    if i<j:
+                        for action in current_state.generate_possible_stateful_actions():
+                            if (10,3) in action.get_next_game_state().get_rep().get_env():
+                                return action #11d
+                    else:
+                        for action in current_state.generate_possible_stateful_actions():
+                            if (3,10) in action.get_next_game_state().get_rep().get_env():
+                                return action #4k
+                elif i+j == 12:
+                    for action in current_state.generate_possible_stateful_actions():
+                        if (i+1,j) in action.get_next_game_state().get_rep().get_env():
+                            return action #checked
+                elif i+j == 14:
+                    for action in current_state.generate_possible_stateful_actions():
+                        if (i-1,j) in action.get_next_game_state().get_rep().get_env():
+                            return action #checked
+                elif i<= 6 and i+j !=13:
+                    for action in current_state.generate_possible_stateful_actions():
+                        if (i+1,j) in action.get_next_game_state().get_rep().get_env():
+                            return action
+                elif i > 6 and i+j !=13:
+                    for action in current_state.generate_possible_stateful_actions():
+                        if (i-1,j) in action.get_next_game_state().get_rep().get_env():
+                            return action
 
             elif depth == 2: # => player MAX is a RED player - second move
+                # first move d11
                 MIN_piece = next(iter(board))
-                upper_part = range(7)
-                i,j = MIN_piece
-                if MIN_piece != (3,10):
+                #i,j = MIN_piece
+                if MIN_piece == (3,10): #4k
                     for action in current_state.generate_possible_stateful_actions():
-                                if (3,10) in action.get_next_game_state().get_rep().get_env():
-                                    return action
+                        if (3,9) in action.get_next_game_state().get_rep().get_env():
+                            return action #4j
+                elif MIN_piece == (10,3): #11d sym
+                    for action in current_state.generate_possible_stateful_actions():
+                        if (10,4) in action.get_next_game_state().get_rep().get_env():
+                            return action #10d
+                elif MIN_piece == (2,10): #3k
+                    for action in current_state.generate_possible_stateful_actions():
+                        if (4,3) in action.get_next_game_state().get_rep().get_env():
+                            return action #5d
+                elif MIN_piece == (10,2): #sym 11c
+                    for action in current_state.generate_possible_stateful_actions():
+                        if (9,10) in action.get_next_game_state().get_rep().get_env():
+                            return action #10k
                 else:
                     for action in current_state.generate_possible_stateful_actions():
-                                if (2,4) in action.get_next_game_state().get_rep().get_env():
-                                    return action
+                        if (3,10) in action.get_next_game_state().get_rep().get_env():
+                            return action #4k
             
-            elif depth == 3:
-                for action in current_state.generate_possible_stateful_actions():
-                    if (3,10) in action.get_next_game_state().get_rep().get_env():
-                        return action
+            elif depth == 3: #Cette partie n'est vraiment pas folle, je pense qu'un min max peut �tre mieux. Il y a tellement de possibilit�s, j'ai mis un peu d'al�atoire, � voir ce que ca donne en pratique
+                board = current_state.get_rep().get_env()
+                red_pieces = []
+                blue_pieces = []
+
+                for pos, piece in board.items():
+                    if piece.get_type() == 'R':
+                        red_pieces.append(pos) #position MIN
+                    elif piece.get_type() == 'B':
+                        blue_pieces.append(pos)#position MAX
+                
+                if (red_pieces[0] == (10,3) and blue_pieces[0]==(3,10) and red_pieces[1]==(6,7)) or (red_pieces[1] == (10,3) and blue_pieces[0]==(3,10) and red_pieces[0]==(6,7)):
+                    for action in current_state.generate_possible_stateful_actions():
+                        if (11,2) in action.get_next_game_state().get_rep().get_env():
+                            return action
+                elif (red_pieces[0] == (3,10) and blue_pieces[0]==(10,3) and red_pieces[1]==(7,6)) or (red_pieces[1] == (3,10) and blue_pieces[0]==(3,10) and red_pieces[0]==(7,6)):
+                    for action in current_state.generate_possible_stateful_actions():
+                        if (2,11) in action.get_next_game_state().get_rep().get_env():
+                            return action
+                elif (red_pieces[0] == (10,3) and blue_pieces[0]==(3,10) and red_pieces[1]==(4,3)) or (red_pieces[1] == (10,3) and blue_pieces[0]==(3,10) and red_pieces[0]==(4,3)):
+                    for action in current_state.generate_possible_stateful_actions():
+                        if (7,3) in action.get_next_game_state().get_rep().get_env():
+                            return action
+                elif (red_pieces[0] == (3,10) and blue_pieces[0]==(10,3) and red_pieces[1]==(3,4)) or (red_pieces[1] == (3,10) and blue_pieces[0]==(10,3) and red_pieces[0]==(3,4)):
+                    for action in current_state.generate_possible_stateful_actions():
+                        if (3,7) in action.get_next_game_state().get_rep().get_env():
+                            return action
+                else:
+                            print("Random move")
+                            center_pieces = [(i, j) for i in range(5, 9) for j in range(5, 9)]
+                            random.shuffle(center_pieces)  # Melange les positions centrales
+                            for (i, j) in center_pieces:
+                                for action in current_state.generate_possible_stateful_actions():
+                                    if (i, j) in action.get_next_game_state().get_rep().get_env():
+                                        return action
 
         raise MethodNotImplementedError()
